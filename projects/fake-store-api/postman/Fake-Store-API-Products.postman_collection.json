@@ -1,0 +1,326 @@
+{
+  "info": {
+    "_postman_id": "4c6d045d-3725-4957-8175-24cf7fb73290",
+    "name": "Fake Store API — Products",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "57522406",
+    "_collection_link": "https://go.postman.co/collection/57522406-881bb206-d443-4488-82ce-8052cc282648?source=collection_link",
+    "description": "Позитивные и негативные проверки ресурса Products: получение списка и объекта, создание, изменение, удаление, проверка статусов, JSON и структуры ответа."
+  },
+  "item": [
+    {
+      "name": "Авторизация",
+      "item": [
+        {
+          "name": "Получить токен",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Авторизация завершилась с успешным статусом\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+                  "});",
+                  "",
+                  "pm.environment.unset(\"token\");",
+                  "",
+                  "if ([200, 201].includes(pm.response.code)) {",
+                  "    pm.test(\"Получен непустой токен\", function () {",
+                  "        const data = pm.response.json();",
+                  "        pm.expect(data.token).to.be.a(\"string\").and.not.empty;",
+                  "        pm.environment.set(\"token\", data.token);",
+                  "    });",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{username}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Негативные тесты",
+      "item": [
+        {
+          "name": "Neg POST - пустое тело",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expectedErrorStatuses = [400];\r\n\r\nconst schema = {\r\n    required: [\r\n        \"id\",\r\n        \"title\",\r\n        \"price\",\r\n        \"description\",\r\n        \"image\",\r\n        \"category\"\r\n    ],\r\n    types: {\r\n        id: [\"integer\"],\r\n        title: [\"string\"],\r\n        price: [\"number\"],\r\n        description: [\"string\"],\r\n        image: [\"string\"],\r\n        category: [\"string\"]\r\n    }\r\n};\r\n\r\nfunction isInteger(value) {\r\n    return typeof value === \"number\" && isFinite(value) && Math.floor(value) === value;\r\n}\r\n\r\nfunction getType(value) {\r\n    if (value === null) {\r\n        return \"null\";\r\n    }\r\n\r\n    if (Array.isArray(value)) {\r\n        return \"array\";\r\n    }\r\n\r\n    if (typeof value === \"number\") {\r\n        if (isInteger(value)) {\r\n            return \"integer\";\r\n        }\r\n\r\n        return \"double\";\r\n    }\r\n\r\n    return typeof value;\r\n}\r\n\r\nfunction typeMatches(actualType, allowedTypes) {\r\n    for (let i = 0; i < allowedTypes.length; i++) {\r\n        const allowedType = allowedTypes[i];\r\n\r\n        if (allowedType === actualType) {\r\n            return true;\r\n        }\r\n\r\n        if (allowedType === \"number\" && (actualType === \"integer\" || actualType === \"double\")) {\r\n            return true;\r\n        }\r\n    }\r\n\r\n    return false;\r\n}\r\n\r\nfunction short(value) {\r\n    try {\r\n        const result = JSON.stringify(value);\r\n        return result === undefined ? String(value) : result;\r\n    } catch (e) {\r\n        return String(value);\r\n    }\r\n}\r\n\r\nlet responseBody = {};\r\n\r\ntry {\r\n    responseBody = pm.response.json();\r\n\r\n    if (!responseBody || typeof responseBody !== \"object\") {\r\n        responseBody = {};\r\n    }\r\n} catch (e) {\r\n    responseBody = {};\r\n}\r\n\r\nlet requestBody = {};\r\n\r\ntry {\r\n    const rawBody = pm.request.body && pm.request.body.raw ? pm.request.body.raw : \"{}\";\r\n    requestBody = JSON.parse(rawBody);\r\n\r\n    if (!requestBody || typeof requestBody !== \"object\") {\r\n        requestBody = {};\r\n    }\r\n} catch (e) {\r\n    requestBody = {};\r\n}\r\n\r\nconst status = pm.response.code;\r\n\r\n// 1. Проверка статуса\r\npm.test(\"[Негативный] products: сервер должен отклонить невалидные данные\", function () {\r\n    const isErrorStatus = expectedErrorStatuses.indexOf(status) !== -1;\r\n\r\n    pm.expect(\r\n        isErrorStatus,\r\n        \"Получен статус: \" + status + \". При невалидном POST /products ожидается: \" + expectedErrorStatuses.join(\", \") + \".\"\r\n    ).to.be.true;\r\n});\r\n\r\n\r\n// 2. Если сервер вернул успех показываем, что именно не так\r\n\r\nif (status >= 200 && status < 300) {\r\n\r\n    // Проверка обязательных полей\r\n    schema.required.forEach(function (field) {\r\n        if (!(field in responseBody)) {\r\n            pm.test(\"[Ошибка] products: отсутствует обязательное поле '\" + field + \"'\", function () {\r\n                pm.expect(\r\n                    false,\r\n                    \"Сервер вернул успешный ответ, но обязательное поле '\" + field + \"' отсутствует. \" +\r\n                    \"Ответ: \" + short(responseBody) + \". \" +\r\n                    \"Запрос: \" + short(requestBody) + \".\"\r\n                ).to.be.true;\r\n            });\r\n        }\r\n    });\r\n\r\n    // Проверка типов данных\r\n    Object.keys(schema.types).forEach(function (field) {\r\n        if (field in responseBody) {\r\n            const actualType = getType(responseBody[field]);\r\n            const allowedTypes = schema.types[field];\r\n\r\n            if (!typeMatches(actualType, allowedTypes)) {\r\n                pm.test(\"[Ошибка] products: недопустимый тип у поля '\" + field + \"'\", function () {\r\n                    pm.expect(\r\n                        false,\r\n                        \"Поле '\" + field + \"' должно быть: \" + allowedTypes.join(\" / \") + \". \" +\r\n                        \"Фактический тип: \" + actualType + \". \" +\r\n                        \"Отправлено: \" + short(requestBody[field]) + \". \" +\r\n                        \"Возвращено: \" + short(responseBody[field]) + \".\"\r\n                    ).to.be.true;\r\n                });\r\n            }\r\n        }\r\n    });\r\n}\r\n\r\n\r\n// 3. Если сервер вернул ошибку — проверяем, есть ли причина\r\n\r\nif (status >= 400) {\r\n    const hasErrorDetails =\r\n        responseBody &&\r\n        (\r\n            responseBody.message ||\r\n            responseBody.error ||\r\n            responseBody.errors ||\r\n            responseBody.title ||\r\n            Object.keys(responseBody).length > 0\r\n        );\r\n\r\n    pm.test(\"[Негативный] products: ошибка должна содержать понятную причину\", function () {\r\n        pm.expect(\r\n            Boolean(hasErrorDetails),\r\n            \"Статус: \" + status + \". Тело ответа: \" + short(responseBody) + \".\"\r\n        ).to.be.true;\r\n    });\r\n}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/products",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "products"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Neg POST - неверные типы данных",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expectedErrorStatuses = [400];\r\n\r\nconst schema = {\r\n    required: [\r\n        \"id\",\r\n        \"title\",\r\n        \"price\",\r\n        \"description\",\r\n        \"image\",\r\n        \"category\"\r\n    ],\r\n    types: {\r\n        id: [\"integer\"],\r\n        title: [\"string\"],\r\n        price: [\"number\"],\r\n        description: [\"string\"],\r\n        image: [\"string\"],\r\n        category: [\"string\"]\r\n    }\r\n};\r\n\r\nfunction isInteger(value) {\r\n    return typeof value === \"number\" && isFinite(value) && Math.floor(value) === value;\r\n}\r\n\r\nfunction getType(value) {\r\n    if (value === null) {\r\n        return \"null\";\r\n    }\r\n\r\n    if (Array.isArray(value)) {\r\n        return \"array\";\r\n    }\r\n\r\n    if (typeof value === \"number\") {\r\n        if (isInteger(value)) {\r\n            return \"integer\";\r\n        }\r\n\r\n        return \"double\";\r\n    }\r\n\r\n    return typeof value;\r\n}\r\n\r\nfunction typeMatches(actualType, allowedTypes) {\r\n    for (let i = 0; i < allowedTypes.length; i++) {\r\n        const allowedType = allowedTypes[i];\r\n\r\n        if (allowedType === actualType) {\r\n            return true;\r\n        }\r\n\r\n        if (allowedType === \"number\" && (actualType === \"integer\" || actualType === \"double\")) {\r\n            return true;\r\n        }\r\n    }\r\n\r\n    return false;\r\n}\r\n\r\nfunction short(value) {\r\n    try {\r\n        const result = JSON.stringify(value);\r\n        return result === undefined ? String(value) : result;\r\n    } catch (e) {\r\n        return String(value);\r\n    }\r\n}\r\n\r\nlet responseBody = {};\r\n\r\ntry {\r\n    responseBody = pm.response.json();\r\n\r\n    if (!responseBody || typeof responseBody !== \"object\") {\r\n        responseBody = {};\r\n    }\r\n} catch (e) {\r\n    responseBody = {};\r\n}\r\n\r\nlet requestBody = {};\r\n\r\ntry {\r\n    const rawBody = pm.request.body && pm.request.body.raw ? pm.request.body.raw : \"{}\";\r\n    requestBody = JSON.parse(rawBody);\r\n\r\n    if (!requestBody || typeof requestBody !== \"object\") {\r\n        requestBody = {};\r\n    }\r\n} catch (e) {\r\n    requestBody = {};\r\n}\r\n\r\nconst status = pm.response.code;\r\n\r\n// 1. Проверка статуса\r\npm.test(\"[Негативный] products: сервер должен отклонить невалидные данные\", function () {\r\n    const isErrorStatus = expectedErrorStatuses.indexOf(status) !== -1;\r\n\r\n    pm.expect(\r\n        isErrorStatus,\r\n        \"Получен статус: \" + status + \". При невалидном POST /products ожидается: \" + expectedErrorStatuses.join(\", \") + \".\"\r\n    ).to.be.true;\r\n});\r\n\r\n\r\n// 2. Если сервер вернул успех показываем, что именно не так\r\n\r\nif (status >= 200 && status < 300) {\r\n\r\n    // Проверка обязательных полей\r\n    schema.required.forEach(function (field) {\r\n        if (!(field in responseBody)) {\r\n            pm.test(\"[Ошибка] products: отсутствует обязательное поле '\" + field + \"'\", function () {\r\n                pm.expect(\r\n                    false,\r\n                    \"Сервер вернул успешный ответ, но обязательное поле '\" + field + \"' отсутствует. \" +\r\n                    \"Ответ: \" + short(responseBody) + \". \" +\r\n                    \"Запрос: \" + short(requestBody) + \".\"\r\n                ).to.be.true;\r\n            });\r\n        }\r\n    });\r\n\r\n    // Проверка типов данных\r\n    Object.keys(schema.types).forEach(function (field) {\r\n        if (field in responseBody) {\r\n            const actualType = getType(responseBody[field]);\r\n            const allowedTypes = schema.types[field];\r\n\r\n            if (!typeMatches(actualType, allowedTypes)) {\r\n                pm.test(\"[Ошибка] products: недопустимый тип у поля '\" + field + \"'\", function () {\r\n                    pm.expect(\r\n                        false,\r\n                        \"Поле '\" + field + \"' должно быть: \" + allowedTypes.join(\" / \") + \". \" +\r\n                        \"Фактический тип: \" + actualType + \". \" +\r\n                        \"Отправлено: \" + short(requestBody[field]) + \". \" +\r\n                        \"Возвращено: \" + short(responseBody[field]) + \".\"\r\n                    ).to.be.true;\r\n                });\r\n            }\r\n        }\r\n    });\r\n}\r\n\r\n\r\n// 3. Если сервер вернул ошибку — проверяем, есть ли причина\r\n\r\nif (status >= 400) {\r\n    const hasErrorDetails =\r\n        responseBody &&\r\n        (\r\n            responseBody.message ||\r\n            responseBody.error ||\r\n            responseBody.errors ||\r\n            responseBody.title ||\r\n            Object.keys(responseBody).length > 0\r\n        );\r\n\r\n    pm.test(\"[Негативный] products: ошибка должна содержать понятную причину\", function () {\r\n        pm.expect(\r\n            Boolean(hasErrorDetails),\r\n            \"Статус: \" + status + \". Тело ответа: \" + short(responseBody) + \".\"\r\n        ).to.be.true;\r\n    });\r\n}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "  {\r\n      \"title\": 12345,\r\n      \"price\": \"бесплатно\",\r\n      \"description\": true,\r\n      \"image\": [],\r\n      \"category\": {}\r\n  }",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/products",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "products"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Получить все товары",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const method = pm.request.method;\r\nconst urlWithoutQuery = pm.request.url.toString().split(\"?\")[0];\r\n\r\nconst isProductsCollection = /\\/products\\/?$/i.test(urlWithoutQuery);\r\nconst productIdMatch = urlWithoutQuery.match(/\\/products\\/(\\d+)/i);\r\n\r\nconst expectedStatuses = method === \"POST\" ? [200, 201] : [200];\r\n\r\nfunction isInteger(value) {\r\n    return typeof value === \"number\" && isFinite(value) && Math.floor(value) === value;\r\n}\r\n\r\nfunction getType(value) {\r\n    if (value === null) {\r\n        return \"null\";\r\n    }\r\n\r\n    if (Array.isArray(value)) {\r\n        return \"array\";\r\n    }\r\n\r\n    if (typeof value === \"number\") {\r\n        if (isInteger(value)) {\r\n            return \"integer\";\r\n        }\r\n\r\n        return \"double\";\r\n    }\r\n\r\n    return typeof value;\r\n}\r\n\r\nfunction typeMatches(actualType, allowedTypes) {\r\n    for (let i = 0; i < allowedTypes.length; i++) {\r\n        const allowedType = allowedTypes[i];\r\n\r\n        if (allowedType === actualType) {\r\n            return true;\r\n        }\r\n\r\n        if (allowedType === \"number\" && (actualType === \"integer\" || actualType === \"double\")) {\r\n            return true;\r\n        }\r\n    }\r\n\r\n    return false;\r\n}\r\n\r\nfunction short(value) {\r\n    try {\r\n        const result = JSON.stringify(value);\r\n        return result === undefined ? String(value) : result;\r\n    } catch (e) {\r\n        return String(value);\r\n    }\r\n}\r\n\r\nfunction validateProduct(item, label, requireAllFields) {\r\n    let errors = [];\r\n\r\n    if (!item || typeof item !== \"object\" || Array.isArray(item)) {\r\n        errors.push(label + \" должен быть объектом.\");\r\n        return errors;\r\n    }\r\n\r\n    const requiredFields = requireAllFields\r\n        ? [\"id\", \"title\", \"price\", \"description\", \"image\", \"category\"]\r\n        : [\"id\"];\r\n\r\n    const types = {\r\n        id: [\"integer\"],\r\n        title: [\"string\"],\r\n        price: [\"number\"],\r\n        description: [\"string\"],\r\n        image: [\"string\"],\r\n        category: [\"string\"]\r\n    };\r\n\r\n    requiredFields.forEach(function (field) {\r\n        if (!(field in item)) {\r\n            errors.push(label + \": отсутствует обязательное поле '\" + field + \"'.\");\r\n        }\r\n    });\r\n\r\n    Object.keys(types).forEach(function (field) {\r\n        if (field in item) {\r\n            const actualType = getType(item[field]);\r\n            const allowedTypes = types[field];\r\n\r\n            if (!typeMatches(actualType, allowedTypes)) {\r\n                errors.push(\r\n                    label + \": поле '\" + field + \"' должно быть \" +\r\n                    allowedTypes.join(\" / \") + \", получено \" + actualType + \".\"\r\n                );\r\n            }\r\n        }\r\n    });\r\n\r\n    return errors;\r\n}\r\n\r\n\r\n// 1. Проверка статуса\r\n\r\npm.test(\"[Позитивный] products: сервер вернул успешный статус\", function () {\r\n    const isSuccessStatus = expectedStatuses.indexOf(pm.response.code) !== -1;\r\n\r\n    pm.expect(\r\n        isSuccessStatus,\r\n        \"Получен статус: \" + pm.response.code + \". Ожидался один из: \" + expectedStatuses.join(\", \") + \".\"\r\n    ).to.be.true;\r\n});\r\n\r\n\r\n// 2. Проверка Content-Type\r\n\r\nconst contentType =\r\n    pm.response.headers && typeof pm.response.headers.get === \"function\"\r\n        ? pm.response.headers.get(\"Content-Type\") || \"\"\r\n        : \"\";\r\n\r\npm.test(\"[Позитивный] products: Content-Type содержит application/json\", function () {\r\n    pm.expect(\r\n        contentType.toLowerCase().indexOf(\"application/json\") !== -1,\r\n        \"Content-Type: \" + contentType\r\n    ).to.be.true;\r\n});\r\n\r\n\r\n// 3. Проверка тела ответа\r\n\r\nlet responseBody = {};\r\nlet jsonParsed = true;\r\n\r\ntry {\r\n    responseBody = pm.response.json();\r\n} catch (e) {\r\n    jsonParsed = false;\r\n}\r\n\r\npm.test(\"[Позитивный] products: тело ответа является валидным JSON\", function () {\r\n    pm.expect(\r\n        jsonParsed,\r\n        \"Не удалось распарсить тело ответа как JSON.\"\r\n    ).to.be.true;\r\n});\r\n\r\nif (!jsonParsed) {\r\n    responseBody = {};\r\n}\r\n\r\nif (!responseBody || typeof responseBody !== \"object\") {\r\n    responseBody = {};\r\n}\r\n\r\n\r\n// 4. Проверки по типу запроса\r\n\r\nif (pm.response.code >= 200 && pm.response.code < 300) {\r\n\r\n    // GET /products\r\n    if (method === \"GET\" && isProductsCollection) {\r\n        pm.test(\"[Позитивный] products: список товаров является массивом\", function () {\r\n            pm.expect(\r\n                Array.isArray(responseBody),\r\n                \"Тело ответа: \" + short(responseBody)\r\n            ).to.be.true;\r\n        });\r\n\r\n        if (Array.isArray(responseBody)) {\r\n            pm.test(\"[Позитивный] products: товары имеют корректную структуру\", function () {\r\n                let errors = [];\r\n\r\n                if (responseBody.length === 0) {\r\n                    errors.push(\"Список товаров пуст.\");\r\n                }\r\n\r\n                responseBody.slice(0, 10).forEach(function (item, index) {\r\n                    errors = errors.concat(validateProduct(item, \"products[\" + index + \"]\", true));\r\n                });\r\n\r\n                pm.expect(errors.length, errors.join(\" \")).to.equal(0);\r\n            });\r\n        }\r\n    }\r\n\r\n    // POST /products\r\n    if (method === \"POST\" && isProductsCollection) {\r\n        pm.test(\"[Позитивный] products: товар создан\", function () {\r\n            const errors = validateProduct(responseBody, \"Ответ на создание товара\", false);\r\n\r\n            pm.expect(errors.length, errors.join(\" \")).to.equal(0);\r\n        });\r\n    }\r\n\r\n    // GET/PUT/PATCH/DELETE /products/{id}\r\n    if (productIdMatch) {\r\n        const expectedId = Number(productIdMatch[1]);\r\n\r\n        pm.test(\"[Позитивный] products: id в ответе совпадает с запрошенным\", function () {\r\n            pm.expect(\r\n                responseBody && responseBody.id,\r\n                \"Тело ответа: \" + short(responseBody)\r\n            ).to.equal(expectedId);\r\n        });\r\n\r\n        if (method === \"GET\") {\r\n            pm.test(\"[Позитивный] products: товар по ID имеет корректную структуру\", function () {\r\n                const errors = validateProduct(responseBody, \"Товар по ID\", true);\r\n\r\n                pm.expect(errors.length, errors.join(\" \")).to.equal(0);\r\n            });\r\n        } else {\r\n            pm.test(\"[Позитивный] products: ответ содержит корректный объект товара\", function () {\r\n                const errors = validateProduct(responseBody, \"Ответ на \" + method + \" запрос\", false);\r\n\r\n                pm.expect(errors.length, errors.join(\" \")).to.equal(0);\r\n            });\r\n        }\r\n    }\r\n}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/products",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "products"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Добавить новый товар",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const method = pm.request.method;\r\nconst urlWithoutQuery = pm.request.url.toString().split(\"?\")[0];\r\n\r\nconst isProductsCollection = /\\/products\\/?$/i.test(urlWithoutQuery);\r\nconst productIdMatch = urlWithoutQuery.match(/\\/products\\/(\\d+)/i);\r\n\r\nconst expectedStatuses = method === \"POST\" ? [200, 201] : [200];\r\n\r\nfunction isInteger(value) {\r\n    return typeof value === \"number\" && isFinite(value) && Math.floor(value) === value;\r\n}\r\n\r\nfunction getType(value) {\r\n    if (value === null) {\r\n        return \"null\";\r\n    }\r\n\r\n    if (Array.isArray(value)) {\r\n        return \"array\";\r\n    }\r\n\r\n    if (typeof value === \"number\") {\r\n        if (isInteger(value)) {\r\n            return \"integer\";\r\n        }\r\n\r\n        return \"double\";\r\n    }\r\n\r\n    return typeof value;\r\n}\r\n\r\nfunction typeMatches(actualType, allowedTypes) {\r\n    for (let i = 0; i < allowedTypes.length; i++) {\r\n        const allowedType = allowedTypes[i];\r\n\r\n        if (allowedType === actualType) {\r\n            return true;\r\n        }\r\n\r\n        if (allowedType === \"number\" && (actualType === \"integer\" || actualType === \"double\")) {\r\n            return true;\r\n        }\r\n    }\r\n\r\n    return false;\r\n}\r\n\r\nfunction short(value) {\r\n    try {\r\n        const result = JSON.stringify(value);\r\n        return result === undefined ? String(value) : result;\r\n    } catch (e) {\r\n        return String(value);\r\n    }\r\n}\r\n\r\nfunction validateProduct(item, label, requireAllFields) {\r\n    let errors = [];\r\n\r\n    if (!item || typeof item !== \"object\" || Array.isArray(item)) {\r\n        errors.push(label + \" должен быть объектом.\");\r\n        return errors;\r\n    }\r\n\r\n    const requiredFields = requireAllFields\r\n        ? [\"id\", \"title\", \"price\", \"description\", \"image\", \"category\"]\r\n        : [\"id\"];\r\n\r\n    const types = {\r\n        id: [\"integer\"],\r\n        title: [\"string\"],\r\n        price: [\"number\"],\r\n        description: [\"string\"],\r\n        image: [\"string\"],\r\n        category: [\"string\"]\r\n    };\r\n\r\n    requiredFields.forEach(function (field) {\r\n        if (!(field in item)) {\r\n            errors.push(label + \": отсутствует обязательное поле '\" + field + \"'.\");\r\n        }\r\n    });\r\n\r\n    Object.keys(types).forEach(function (field) {\r\n        if (field in item) {\r\n            const actualType = getType(item[field]);\r\n            const allowedTypes = types[field];\r\n\r\n            if (!typeMatches(actualType, allowedTypes)) {\r\n                errors.push(\r\n                    label + \": поле '\" + field + \"' должно быть \" +\r\n                    allowedTypes.join(\" / \") + \", получено \" + actualType + \".\"\r\n                );\r\n            }\r\n        }\r\n    });\r\n\r\n    return errors;\r\n}\r\n\r\n\r\n// 1. Проверка статуса\r\n\r\npm.test(\"[Позитивный] products: сервер вернул успешный статус\", function () {\r\n    const isSuccessStatus = expectedStatuses.indexOf(pm.response.code) !== -1;\r\n\r\n    pm.expect(\r\n        isSuccessStatus,\r\n        \"Получен статус: \" + pm.response.code + \". Ожидался один из: \" + expectedStatuses.join(\", \") + \".\"\r\n    ).to.be.true;\r\n});\r\n\r\n\r\n// 2. Проверка Content-Type\r\n\r\nconst contentType =\r\n    pm.response.headers && typeof pm.response.headers.get === \"function\"\r\n        ? pm.response.headers.get(\"Content-Type\") || \"\"\r\n        : \"\";\r\n\r\npm.test(\"[Позитивный] products: Content-Type содержит application/json\", function () {\r\n    pm.expect(\r\n        contentType.toLowerCase().indexOf(\"application/json\") !== -1,\r\n        \"Content-Type: \" + contentType\r\n    ).to.be.true;\r\n});\r\n\r\n\r\n// 3. Проверка тела ответа\r\n\r\nlet responseBody = {};\r\nlet jsonParsed = true;\r\n\r\ntry {\r\n    responseBody = pm.response.json();\r\n} catch (e) {\r\n    jsonParsed = false;\r\n}\r\n\r\npm.test(\"[Позитивный] products: тело ответа является валидным JSON\", function () {\r\n    pm.expect(\r\n        jsonParsed,\r\n        \"Не удалось распарсить тело ответа как JSON.\"\r\n    ).to.be.true;\r\n});\r\n\r\nif (!jsonParsed) {\r\n    responseBody = {};\r\n}\r\n\r\nif (!responseBody || typeof responseBody !== \"object\") {\r\n    responseBody = {};\r\n}\r\n\r\n\r\n// 4. Проверки по типу запроса\r\n\r\nif (pm.response.code >= 200 && pm.response.code < 300) {\r\n\r\n    // GET /products\r\n    if (method === \"GET\" && isProductsCollection) {\r\n        pm.test(\"[Позитивный] products: список товаров является массивом\", function () {\r\n            pm.expect(\r\n                Array.isArray(responseBody),\r\n                \"Тело ответа: \" + short(responseBody)\r\n            ).to.be.true;\r\n        });\r\n\r\n        if (Array.isArray(responseBody)) {\r\n            pm.test(\"[Позитивный] products: товары имеют корректную структуру\", function () {\r\n                let errors = [];\r\n\r\n                if (responseBody.length === 0) {\r\n                    errors.push(\"Список товаров пуст.\");\r\n                }\r\n\r\n                responseBody.slice(0, 10).forEach(function (item, index) {\r\n                    errors = errors.concat(validateProduct(item, \"products[\" + index + \"]\", true));\r\n                });\r\n\r\n                pm.expect(errors.length, errors.join(\" \")).to.equal(0);\r\n            });\r\n        }\r\n    }\r\n\r\n    // POST /products\r\n    if (method === \"POST\" && isProductsCollection) {\r\n        pm.test(\"[Позитивный] products: товар создан\", function () {\r\n            const errors = validateProduct(responseBody, \"Ответ на создание товара\", false);\r\n\r\n            pm.expect(errors.length, errors.join(\" \")).to.equal(0);\r\n        });\r\n    }\r\n\r\n    // GET/PUT/PATCH/DELETE /products/{id}\r\n    if (productIdMatch) {\r\n        const expectedId = Number(productIdMatch[1]);\r\n\r\n        pm.test(\"[Позитивный] products: id в ответе совпадает с запрошенным\", function () {\r\n            pm.expect(\r\n                responseBody && responseBody.id,\r\n                \"Тело ответа: \" + short(responseBody)\r\n            ).to.equal(expectedId);\r\n        });\r\n\r\n        if (method === \"GET\") {\r\n            pm.test(\"[Позитивный] products: товар по ID имеет корректную структуру\", function () {\r\n                const errors = validateProduct(responseBody, \"Товар по ID\", true);\r\n\r\n                pm.expect(errors.length, errors.join(\" \")).to.equal(0);\r\n            });\r\n        } else {\r\n            pm.test(\"[Позитивный] products: ответ содержит корректный объект товара\", function () {\r\n                const errors = validateProduct(responseBody, \"Ответ на \" + method + \" запрос\", false);\r\n\r\n                pm.expect(errors.length, errors.join(\" \")).to.equal(0);\r\n            });\r\n        }\r\n    }\r\n}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"title\": \"Test ring\",\r\n  \"price\": 13.5,\r\n  \"description\": \"Product for API testing\",\r\n  \"image\": \"https://i.pravatar.cc\",\r\n  \"category\": \"jewelery\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{base_url}}/products",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "products"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Получить один товар",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const method = pm.request.method;\r\nconst urlWithoutQuery = pm.request.url.toString().split(\"?\")[0];\r\n\r\nconst isProductsCollection = /\\/products\\/?$/i.test(urlWithoutQuery);\r\nconst productIdMatch = urlWithoutQuery.match(/\\/products\\/(\\d+)/i);\r\n\r\nconst expectedStatuses = method === \"POST\" ? [200, 201] : [200];\r\n\r\nfunction isInteger(value) {\r\n    return typeof value === \"number\" && isFinite(value) && Math.floor(value) === value;\r\n}\r\n\r\nfunction getType(value) {\r\n    if (value === null) {\r\n        return \"null\";\r\n    }\r\n\r\n    if (Array.isArray(value)) {\r\n        return \"array\";\r\n    }\r\n\r\n    if (typeof value === \"number\") {\r\n        if (isInteger(value)) {\r\n            return \"integer\";\r\n        }\r\n\r\n        return \"double\";\r\n    }\r\n\r\n    return typeof value;\r\n}\r\n\r\nfunction typeMatches(actualType, allowedTypes) {\r\n    for (let i = 0; i < allowedTypes.length; i++) {\r\n        const allowedType = allowedTypes[i];\r\n\r\n        if (allowedType === actualType) {\r\n            return true;\r\n        }\r\n\r\n        if (allowedType === \"number\" && (actualType === \"integer\" || actualType === \"double\")) {\r\n            return true;\r\n        }\r\n    }\r\n\r\n    return false;\r\n}\r\n\r\nfunction short(value) {\r\n    try {\r\n        const result = JSON.stringify(value);\r\n        return result === undefined ? String(value) : result;\r\n    } catch (e) {\r\n        return String(value);\r\n    }\r\n}\r\n\r\nfunction validateProduct(item, label, requireAllFields) {\r\n    let errors = [];\r\n\r\n    if (!item || typeof item !== \"object\" || Array.isArray(item)) {\r\n        errors.push(label + \" должен быть объектом.\");\r\n        return errors;\r\n    }\r\n\r\n    const requiredFields = requireAllFields\r\n        ? [\"id\", \"title\", \"price\", \"description\", \"image\", \"category\"]\r\n        : [\"id\"];\r\n\r\n    const types = {\r\n        id: [\"integer\"],\r\n        title: [\"string\"],\r\n        price: [\"number\"],\r\n        description: [\"string\"],\r\n        image: [\"string\"],\r\n        category: [\"string\"]\r\n    };\r\n\r\n    requiredFields.forEach(function (field) {\r\n        if (!(field in item)) {\r\n            errors.push(label + \": отсутствует обязательное поле '\" + field + \"'.\");\r\n        }\r\n    });\r\n\r\n    Object.keys(types).forEach(function (field) {\r\n        if (field in item) {\r\n            const actualType = getType(item[field]);\r\n            const allowedTypes = types[field];\r\n\r\n            if (!typeMatches(actualType, allowedTypes)) {\r\n                errors.push(\r\n                    label + \": поле '\" + field + \"' должно быть \" +\r\n                    allowedTypes.join(\" / \") + \", получено \" + actualType + \".\"\r\n                );\r\n            }\r\n        }\r\n    });\r\n\r\n    return errors;\r\n}\r\n\r\n\r\n// 1. Проверка статуса\r\n\r\npm.test(\"[Позитивный] products: сервер вернул успешный статус\", function () {\r\n    const isSuccessStatus = expectedStatuses.indexOf(pm.response.code) !== -1;\r\n\r\n    pm.expect(\r\n        isSuccessStatus,\r\n        \"Получен статус: \" + pm.response.code + \". Ожидался один из: \" + expectedStatuses.join(\", \") + \".\"\r\n    ).to.be.true;\r\n});\r\n\r\n\r\n// 2. Проверка Content-Type\r\n\r\nconst contentType =\r\n    pm.response.headers && typeof pm.response.headers.get === \"function\"\r\n        ? pm.response.headers.get(\"Content-Type\") || \"\"\r\n        : \"\";\r\n\r\npm.test(\"[Позитивный] products: Content-Type содержит application/json\", function () {\r\n    pm.expect(\r\n        contentType.toLowerCase().indexOf(\"application/json\") !== -1,\r\n        \"Content-Type: \" + contentType\r\n    ).to.be.true;\r\n});\r\n\r\n\r\n// 3. Проверка тела ответа\r\n\r\nlet responseBody = {};\r\nlet jsonParsed = true;\r\n\r\ntry {\r\n    responseBody = pm.response.json();\r\n} catch (e) {\r\n    jsonParsed = false;\r\n}\r\n\r\npm.test(\"[Позитивный] products: тело ответа является валидным JSON\", function () {\r\n    pm.expect(\r\n        jsonParsed,\r\n        \"Не удалось распарсить тело ответа как JSON.\"\r\n    ).to.be.true;\r\n});\r\n\r\nif (!jsonParsed) {\r\n    responseBody = {};\r\n}\r\n\r\nif (!responseBody || typeof responseBody !== \"object\") {\r\n    responseBody = {};\r\n}\r\n\r\n\r\n// 4. Проверки по типу запроса\r\n\r\nif (pm.response.code >= 200 && pm.response.code < 300) {\r\n\r\n    // GET /products\r\n    if (method === \"GET\" && isProductsCollection) {\r\n        pm.test(\"[Позитивный] products: список товаров является массивом\", function () {\r\n            pm.expect(\r\n                Array.isArray(responseBody),\r\n                \"Тело ответа: \" + short(responseBody)\r\n            ).to.be.true;\r\n        });\r\n\r\n        if (Array.isArray(responseBody)) {\r\n            pm.test(\"[Позитивный] products: товары имеют корректную структуру\", function () {\r\n                let errors = [];\r\n\r\n                if (responseBody.length === 0) {\r\n                    errors.push(\"Список товаров пуст.\");\r\n                }\r\n\r\n                responseBody.slice(0, 10).forEach(function (item, index) {\r\n                    errors = errors.concat(validateProduct(item, \"products[\" + index + \"]\", true));\r\n                });\r\n\r\n                pm.expect(errors.length, errors.join(\" \")).to.equal(0);\r\n            });\r\n        }\r\n    }\r\n\r\n    // POST /products\r\n    if (method === \"POST\" && isProductsCollection) {\r\n        pm.test(\"[Позитивный] products: товар создан\", function () {\r\n            const errors = validateProduct(responseBody, \"Ответ на создание товара\", false);\r\n\r\n            pm.expect(errors.length, errors.join(\" \")).to.equal(0);\r\n        });\r\n    }\r\n\r\n    // GET/PUT/PATCH/DELETE /products/{id}\r\n    if (productIdMatch) {\r\n        const expectedId = Number(productIdMatch[1]);\r\n\r\n        pm.test(\"[Позитивный] products: id в ответе совпадает с запрошенным\", function () {\r\n            pm.expect(\r\n                responseBody && responseBody.id,\r\n                \"Тело ответа: \" + short(responseBody)\r\n            ).to.equal(expectedId);\r\n        });\r\n\r\n        if (method === \"GET\") {\r\n            pm.test(\"[Позитивный] products: товар по ID имеет корректную структуру\", function () {\r\n                const errors = validateProduct(responseBody, \"Товар по ID\", true);\r\n\r\n                pm.expect(errors.length, errors.join(\" \")).to.equal(0);\r\n            });\r\n        } else {\r\n            pm.test(\"[Позитивный] products: ответ содержит корректный объект товара\", function () {\r\n                const errors = validateProduct(responseBody, \"Ответ на \" + method + \" запрос\", false);\r\n\r\n                pm.expect(errors.length, errors.join(\" \")).to.equal(0);\r\n            });\r\n        }\r\n    }\r\n}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/products/1",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "products",
+            "1"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Обновить товар",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const method = pm.request.method;\r\nconst urlWithoutQuery = pm.request.url.toString().split(\"?\")[0];\r\n\r\nconst isProductsCollection = /\\/products\\/?$/i.test(urlWithoutQuery);\r\nconst productIdMatch = urlWithoutQuery.match(/\\/products\\/(\\d+)/i);\r\n\r\nconst expectedStatuses = method === \"POST\" ? [200, 201] : [200];\r\n\r\nfunction isInteger(value) {\r\n    return typeof value === \"number\" && isFinite(value) && Math.floor(value) === value;\r\n}\r\n\r\nfunction getType(value) {\r\n    if (value === null) {\r\n        return \"null\";\r\n    }\r\n\r\n    if (Array.isArray(value)) {\r\n        return \"array\";\r\n    }\r\n\r\n    if (typeof value === \"number\") {\r\n        if (isInteger(value)) {\r\n            return \"integer\";\r\n        }\r\n\r\n        return \"double\";\r\n    }\r\n\r\n    return typeof value;\r\n}\r\n\r\nfunction typeMatches(actualType, allowedTypes) {\r\n    for (let i = 0; i < allowedTypes.length; i++) {\r\n        const allowedType = allowedTypes[i];\r\n\r\n        if (allowedType === actualType) {\r\n            return true;\r\n        }\r\n\r\n        if (allowedType === \"number\" && (actualType === \"integer\" || actualType === \"double\")) {\r\n            return true;\r\n        }\r\n    }\r\n\r\n    return false;\r\n}\r\n\r\nfunction short(value) {\r\n    try {\r\n        const result = JSON.stringify(value);\r\n        return result === undefined ? String(value) : result;\r\n    } catch (e) {\r\n        return String(value);\r\n    }\r\n}\r\n\r\nfunction validateProduct(item, label, requireAllFields) {\r\n    let errors = [];\r\n\r\n    if (!item || typeof item !== \"object\" || Array.isArray(item)) {\r\n        errors.push(label + \" должен быть объектом.\");\r\n        return errors;\r\n    }\r\n\r\n    const requiredFields = requireAllFields\r\n        ? [\"id\", \"title\", \"price\", \"description\", \"image\", \"category\"]\r\n        : [\"id\"];\r\n\r\n    const types = {\r\n        id: [\"integer\"],\r\n        title: [\"string\"],\r\n        price: [\"number\"],\r\n        description: [\"string\"],\r\n        image: [\"string\"],\r\n        category: [\"string\"]\r\n    };\r\n\r\n    requiredFields.forEach(function (field) {\r\n        if (!(field in item)) {\r\n            errors.push(label + \": отсутствует обязательное поле '\" + field + \"'.\");\r\n        }\r\n    });\r\n\r\n    Object.keys(types).forEach(function (field) {\r\n        if (field in item) {\r\n            const actualType = getType(item[field]);\r\n            const allowedTypes = types[field];\r\n\r\n            if (!typeMatches(actualType, allowedTypes)) {\r\n                errors.push(\r\n                    label + \": поле '\" + field + \"' должно быть \" +\r\n                    allowedTypes.join(\" / \") + \", получено \" + actualType + \".\"\r\n                );\r\n            }\r\n        }\r\n    });\r\n\r\n    return errors;\r\n}\r\n\r\n\r\n// 1. Проверка статуса\r\n\r\npm.test(\"[Позитивный] products: сервер вернул успешный статус\", function () {\r\n    const isSuccessStatus = expectedStatuses.indexOf(pm.response.code) !== -1;\r\n\r\n    pm.expect(\r\n        isSuccessStatus,\r\n        \"Получен статус: \" + pm.response.code + \". Ожидался один из: \" + expectedStatuses.join(\", \") + \".\"\r\n    ).to.be.true;\r\n});\r\n\r\n\r\n// 2. Проверка Content-Type\r\n\r\nconst contentType =\r\n    pm.response.headers && typeof pm.response.headers.get === \"function\"\r\n        ? pm.response.headers.get(\"Content-Type\") || \"\"\r\n        : \"\";\r\n\r\npm.test(\"[Позитивный] products: Content-Type содержит application/json\", function () {\r\n    pm.expect(\r\n        contentType.toLowerCase().indexOf(\"application/json\") !== -1,\r\n        \"Content-Type: \" + contentType\r\n    ).to.be.true;\r\n});\r\n\r\n\r\n// 3. Проверка тела ответа\r\n\r\nlet responseBody = {};\r\nlet jsonParsed = true;\r\n\r\ntry {\r\n    responseBody = pm.response.json();\r\n} catch (e) {\r\n    jsonParsed = false;\r\n}\r\n\r\npm.test(\"[Позитивный] products: тело ответа является валидным JSON\", function () {\r\n    pm.expect(\r\n        jsonParsed,\r\n        \"Не удалось распарсить тело ответа как JSON.\"\r\n    ).to.be.true;\r\n});\r\n\r\nif (!jsonParsed) {\r\n    responseBody = {};\r\n}\r\n\r\nif (!responseBody || typeof responseBody !== \"object\") {\r\n    responseBody = {};\r\n}\r\n\r\n\r\n// 4. Проверки по типу запроса\r\n\r\nif (pm.response.code >= 200 && pm.response.code < 300) {\r\n\r\n    // GET /products\r\n    if (method === \"GET\" && isProductsCollection) {\r\n        pm.test(\"[Позитивный] products: список товаров является массивом\", function () {\r\n            pm.expect(\r\n                Array.isArray(responseBody),\r\n                \"Тело ответа: \" + short(responseBody)\r\n            ).to.be.true;\r\n        });\r\n\r\n        if (Array.isArray(responseBody)) {\r\n            pm.test(\"[Позитивный] products: товары имеют корректную структуру\", function () {\r\n                let errors = [];\r\n\r\n                if (responseBody.length === 0) {\r\n                    errors.push(\"Список товаров пуст.\");\r\n                }\r\n\r\n                responseBody.slice(0, 10).forEach(function (item, index) {\r\n                    errors = errors.concat(validateProduct(item, \"products[\" + index + \"]\", true));\r\n                });\r\n\r\n                pm.expect(errors.length, errors.join(\" \")).to.equal(0);\r\n            });\r\n        }\r\n    }\r\n\r\n    // POST /products\r\n    if (method === \"POST\" && isProductsCollection) {\r\n        pm.test(\"[Позитивный] products: товар создан\", function () {\r\n            const errors = validateProduct(responseBody, \"Ответ на создание товара\", false);\r\n\r\n            pm.expect(errors.length, errors.join(\" \")).to.equal(0);\r\n        });\r\n    }\r\n\r\n    // GET/PUT/PATCH/DELETE /products/{id}\r\n    if (productIdMatch) {\r\n        const expectedId = Number(productIdMatch[1]);\r\n\r\n        pm.test(\"[Позитивный] products: id в ответе совпадает с запрошенным\", function () {\r\n            pm.expect(\r\n                responseBody && responseBody.id,\r\n                \"Тело ответа: \" + short(responseBody)\r\n            ).to.equal(expectedId);\r\n        });\r\n\r\n        if (method === \"GET\") {\r\n            pm.test(\"[Позитивный] products: товар по ID имеет корректную структуру\", function () {\r\n                const errors = validateProduct(responseBody, \"Товар по ID\", true);\r\n\r\n                pm.expect(errors.length, errors.join(\" \")).to.equal(0);\r\n            });\r\n        } else {\r\n            pm.test(\"[Позитивный] products: ответ содержит корректный объект товара\", function () {\r\n                const errors = validateProduct(responseBody, \"Ответ на \" + method + \" запрос\", false);\r\n\r\n                pm.expect(errors.length, errors.join(\" \")).to.equal(0);\r\n            });\r\n        }\r\n    }\r\n}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"title\": \"Updated ring\",\r\n  \"price\": 19.99,\r\n  \"description\": \"Updated product for API testing\",\r\n  \"image\": \"https://i.pravatar.cc\",\r\n  \"category\": \"jewelery\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{base_url}}/products/1",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "products",
+            "1"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Удалить товар",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const method = pm.request.method;\r\nconst urlWithoutQuery = pm.request.url.toString().split(\"?\")[0];\r\n\r\nconst isProductsCollection = /\\/products\\/?$/i.test(urlWithoutQuery);\r\nconst productIdMatch = urlWithoutQuery.match(/\\/products\\/(\\d+)/i);\r\n\r\nconst expectedStatuses = method === \"POST\" ? [200, 201] : [200];\r\n\r\nfunction isInteger(value) {\r\n    return typeof value === \"number\" && isFinite(value) && Math.floor(value) === value;\r\n}\r\n\r\nfunction getType(value) {\r\n    if (value === null) {\r\n        return \"null\";\r\n    }\r\n\r\n    if (Array.isArray(value)) {\r\n        return \"array\";\r\n    }\r\n\r\n    if (typeof value === \"number\") {\r\n        if (isInteger(value)) {\r\n            return \"integer\";\r\n        }\r\n\r\n        return \"double\";\r\n    }\r\n\r\n    return typeof value;\r\n}\r\n\r\nfunction typeMatches(actualType, allowedTypes) {\r\n    for (let i = 0; i < allowedTypes.length; i++) {\r\n        const allowedType = allowedTypes[i];\r\n\r\n        if (allowedType === actualType) {\r\n            return true;\r\n        }\r\n\r\n        if (allowedType === \"number\" && (actualType === \"integer\" || actualType === \"double\")) {\r\n            return true;\r\n        }\r\n    }\r\n\r\n    return false;\r\n}\r\n\r\nfunction short(value) {\r\n    try {\r\n        const result = JSON.stringify(value);\r\n        return result === undefined ? String(value) : result;\r\n    } catch (e) {\r\n        return String(value);\r\n    }\r\n}\r\n\r\nfunction validateProduct(item, label, requireAllFields) {\r\n    let errors = [];\r\n\r\n    if (!item || typeof item !== \"object\" || Array.isArray(item)) {\r\n        errors.push(label + \" должен быть объектом.\");\r\n        return errors;\r\n    }\r\n\r\n    const requiredFields = requireAllFields\r\n        ? [\"id\", \"title\", \"price\", \"description\", \"image\", \"category\"]\r\n        : [\"id\"];\r\n\r\n    const types = {\r\n        id: [\"integer\"],\r\n        title: [\"string\"],\r\n        price: [\"number\"],\r\n        description: [\"string\"],\r\n        image: [\"string\"],\r\n        category: [\"string\"]\r\n    };\r\n\r\n    requiredFields.forEach(function (field) {\r\n        if (!(field in item)) {\r\n            errors.push(label + \": отсутствует обязательное поле '\" + field + \"'.\");\r\n        }\r\n    });\r\n\r\n    Object.keys(types).forEach(function (field) {\r\n        if (field in item) {\r\n            const actualType = getType(item[field]);\r\n            const allowedTypes = types[field];\r\n\r\n            if (!typeMatches(actualType, allowedTypes)) {\r\n                errors.push(\r\n                    label + \": поле '\" + field + \"' должно быть \" +\r\n                    allowedTypes.join(\" / \") + \", получено \" + actualType + \".\"\r\n                );\r\n            }\r\n        }\r\n    });\r\n\r\n    return errors;\r\n}\r\n\r\n\r\n// 1. Проверка статуса\r\n\r\npm.test(\"[Позитивный] products: сервер вернул успешный статус\", function () {\r\n    const isSuccessStatus = expectedStatuses.indexOf(pm.response.code) !== -1;\r\n\r\n    pm.expect(\r\n        isSuccessStatus,\r\n        \"Получен статус: \" + pm.response.code + \". Ожидался один из: \" + expectedStatuses.join(\", \") + \".\"\r\n    ).to.be.true;\r\n});\r\n\r\n\r\n// 2. Проверка Content-Type\r\n\r\nconst contentType =\r\n    pm.response.headers && typeof pm.response.headers.get === \"function\"\r\n        ? pm.response.headers.get(\"Content-Type\") || \"\"\r\n        : \"\";\r\n\r\npm.test(\"[Позитивный] products: Content-Type содержит application/json\", function () {\r\n    pm.expect(\r\n        contentType.toLowerCase().indexOf(\"application/json\") !== -1,\r\n        \"Content-Type: \" + contentType\r\n    ).to.be.true;\r\n});\r\n\r\n\r\n// 3. Проверка тела ответа\r\n\r\nlet responseBody = {};\r\nlet jsonParsed = true;\r\n\r\ntry {\r\n    responseBody = pm.response.json();\r\n} catch (e) {\r\n    jsonParsed = false;\r\n}\r\n\r\npm.test(\"[Позитивный] products: тело ответа является валидным JSON\", function () {\r\n    pm.expect(\r\n        jsonParsed,\r\n        \"Не удалось распарсить тело ответа как JSON.\"\r\n    ).to.be.true;\r\n});\r\n\r\nif (!jsonParsed) {\r\n    responseBody = {};\r\n}\r\n\r\nif (!responseBody || typeof responseBody !== \"object\") {\r\n    responseBody = {};\r\n}\r\n\r\n\r\n// 4. Проверки по типу запроса\r\n\r\nif (pm.response.code >= 200 && pm.response.code < 300) {\r\n\r\n    // GET /products\r\n    if (method === \"GET\" && isProductsCollection) {\r\n        pm.test(\"[Позитивный] products: список товаров является массивом\", function () {\r\n            pm.expect(\r\n                Array.isArray(responseBody),\r\n                \"Тело ответа: \" + short(responseBody)\r\n            ).to.be.true;\r\n        });\r\n\r\n        if (Array.isArray(responseBody)) {\r\n            pm.test(\"[Позитивный] products: товары имеют корректную структуру\", function () {\r\n                let errors = [];\r\n\r\n                if (responseBody.length === 0) {\r\n                    errors.push(\"Список товаров пуст.\");\r\n                }\r\n\r\n                responseBody.slice(0, 10).forEach(function (item, index) {\r\n                    errors = errors.concat(validateProduct(item, \"products[\" + index + \"]\", true));\r\n                });\r\n\r\n                pm.expect(errors.length, errors.join(\" \")).to.equal(0);\r\n            });\r\n        }\r\n    }\r\n\r\n    // POST /products\r\n    if (method === \"POST\" && isProductsCollection) {\r\n        pm.test(\"[Позитивный] products: товар создан\", function () {\r\n            const errors = validateProduct(responseBody, \"Ответ на создание товара\", false);\r\n\r\n            pm.expect(errors.length, errors.join(\" \")).to.equal(0);\r\n        });\r\n    }\r\n\r\n    // GET/PUT/PATCH/DELETE /products/{id}\r\n    if (productIdMatch) {\r\n        const expectedId = Number(productIdMatch[1]);\r\n\r\n        pm.test(\"[Позитивный] products: id в ответе совпадает с запрошенным\", function () {\r\n            pm.expect(\r\n                responseBody && responseBody.id,\r\n                \"Тело ответа: \" + short(responseBody)\r\n            ).to.equal(expectedId);\r\n        });\r\n\r\n        if (method === \"GET\") {\r\n            pm.test(\"[Позитивный] products: товар по ID имеет корректную структуру\", function () {\r\n                const errors = validateProduct(responseBody, \"Товар по ID\", true);\r\n\r\n                pm.expect(errors.length, errors.join(\" \")).to.equal(0);\r\n            });\r\n        } else {\r\n            pm.test(\"[Позитивный] products: ответ содержит корректный объект товара\", function () {\r\n                const errors = validateProduct(responseBody, \"Ответ на \" + method + \" запрос\", false);\r\n\r\n                pm.expect(errors.length, errors.join(\" \")).to.equal(0);\r\n            });\r\n        }\r\n    }\r\n}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "DELETE",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"title\": \"Test ring\",\r\n  \"price\": 13.5,\r\n  \"description\": \"Product for API testing\",\r\n  \"image\": \"https://i.pravatar.cc\",\r\n  \"category\": \"jewelery\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{base_url}}/products/1",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "products",
+            "1"
+          ]
+        }
+      },
+      "response": []
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  }
+}
